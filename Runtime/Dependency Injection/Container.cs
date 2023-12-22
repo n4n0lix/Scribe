@@ -35,6 +35,7 @@ namespace Scribe
                 return;
             }
 
+            Debug.Log($"Bound {typeof(T).Name} => {instance}");
             instanceBindings[type] = instance;
         }
 
@@ -47,12 +48,19 @@ namespace Scribe
                 return;
             }
 
+            Debug.Log($"Bound prefab {typeof(T).Name} => {prefab}");
             prefabBindings[type] = prefab;
         }
 
         public void BindFromResources<T>(string resourcePath) where T : UnityEngine.Object
         {
             Bind(Resources.Load<T>(resourcePath));
+        }
+
+        public void InstantiateAndBindResource<T>(string resourcePath) where T : UnityEngine.Object
+        {
+            var obj = Resources.Load<T>(resourcePath);
+            Bind(UnityEngine.Object.Instantiate(obj));
         }
 
         public bool IsBound(Type type) => instanceBindings.ContainsKey(type) || prefabBindings.ContainsKey(type);
@@ -113,6 +121,7 @@ namespace Scribe
                 return;
             }
 
+            Debug.Log($"Bound prefab {typeof(T).Name} [{id}] => {instance}");
             idBindings[Tuple.Create(type, id)] = instance;
         }
 

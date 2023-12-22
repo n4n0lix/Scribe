@@ -7,19 +7,21 @@ using UnityEngine.SceneManagement;
 namespace Scribe
 {
     /// <summary>
-    /// A dependency injection scope tied to a specific scene.
+    /// A dependency injection scope tied the whole game context.
     /// </summary>
     [DefaultExecutionOrder(-999)]
-    public class GameScope : ScriptableObject, IScope
+    public abstract class GameScope : ScriptableObject, IScope
     {
 
-        protected Container Container = new Container(
+        public Container Container = new Container(
             instantiationFunc: (g) =>
             {
                 var go = Instantiate(g);
                 DontDestroyOnLoad(go);
                 return go;
             });
+
+        public abstract void OnRegister();
 
         /// <summary>
         /// <inheritdoc cref="IHierarchyScope.IsBound(Type)"/>

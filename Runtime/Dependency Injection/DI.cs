@@ -73,10 +73,25 @@ namespace Scribe
 
                 Type fieldType = field.FieldType;
 
+                bool resolved;
+                object resolvedObject;
+
                 if (string.IsNullOrEmpty(injectAttribute.id))
-                    field.SetValue(self, Resolve(scopes, fieldType));
+                    resolved = Resolve(scopes, fieldType, out resolvedObject);
                 else
-                    field.SetValue(self, ResolveById(scopes, fieldType, injectAttribute.id));
+                    resolved = ResolveById(scopes, fieldType, injectAttribute.id, out resolvedObject);
+
+                if (!resolved && !injectAttribute.optional)
+                {
+                    if (injectAttribute.id == null)
+                        Debug.LogError($"failed to inject required field: {fieldType.Name} {self.GetType().Name}.{field.Name}");
+                    else
+                        Debug.LogError($"failed to inject required field with id `{injectAttribute.id}`: {fieldType.Name} {self.GetType().Name}.{field.Name}");
+
+                    return;
+                }
+
+                field.SetValue(self, resolvedObject);
             }
         }
 
@@ -86,15 +101,17 @@ namespace Scribe
         /// <param name="scopes">A collection of scopes</param>
         /// <param name="type">A type</param>
         /// <returns>An object bound for the given type or null</returns>
-        public static object Resolve(IEnumerable<IScope> scopes, Type type)
+        public static bool Resolve(IEnumerable<IScope> scopes, Type type, out object result)
         {
             foreach (var scope in scopes)
                 if (scope.IsBound(type))
-                    return scope.Get(type);
+                {
+                    result = scope.Get(type);
+                    return true;
+                }
 
-            Debug.LogError($"Failed to resolve {type}");
-
-            return null;
+            result = null;
+            return false;
         }
 
         /// <summary>
@@ -103,18 +120,24 @@ namespace Scribe
         /// <param name="scopes">A collection of scopes</param>
         /// <param name="type">A type</param>
         /// <returns>An object bound for the given type or null</returns>
-        public static object ResolveById(IEnumerable<IScope> scopes, Type type, string id)
+        public static bool ResolveById(IEnumerable<IScope> scopes, Type type, string id, out object result)
         {
             foreach (var scope in scopes)
                 if (scope.IsBound(type, id))
-                    return scope.Get(type, id);
+                {
+                    result =scope.Get(type, id);
+                    return true;
+                }
 
-            Debug.LogError($"Failed to resolve {type} with id `{id}`");
-
-            return null;
+            result = null;
+            return false;
         }
 
-        public static T Get<T>(MonoBehaviour self) => (T)Resolve(GetScopes(self), typeof(T));
+        public static T Get<T>(MonoBehaviour self)
+        {
+            Resolve(GetScopes(self), typeof(T), out var result);
+            return (T)result;
+        }
 
         #region Scene Scopes
         private static Dictionary<Scene, List<IHierarchyScope>> sceneScopes = new Dictionary<Scene, List<IHierarchyScope>>();
@@ -152,9 +175,14 @@ namespace Scribe
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Init()
         {
+            if (!Application.isPlaying) return;
+
             var gameScopes = Resources.LoadAll<GameScope>("");
             foreach (var scope in gameScopes)
+            {
+                scope.OnRegister();
                 AddGameScope(scope);
+            }
         }
 
         public static void AddGameScope(GameScope gameScope)

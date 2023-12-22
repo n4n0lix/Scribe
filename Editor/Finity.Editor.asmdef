@@ -1,0 +1,19 @@
+{
+    "name": "Finity.Editor",
+    "rootNamespace": "Finity",
+    "references": [
+        "GUID:2c573e6b271651846a79655161004c5b",
+        "GUID:de62fef25e58f844bb68970afa77e10a"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
