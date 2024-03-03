@@ -2,14 +2,36 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace Scribe
 {
     [DefaultExecutionOrder(-999)]
     public class HierarchyScope : MonoBehaviour, IHierarchyScope
     {
+        public UnityEvent onRegistered = new UnityEvent();
+        public UnityEvent onUnregistered = new UnityEvent();
 
-        protected Container Container = new Container();
+        public void Awake()
+        {
+            DI.RegisterSceneScope(gameObject.scene, this);
+            RegisterScope();
+            onRegistered?.Invoke();
+        }
+
+        private void OnDestroy()
+        {
+            DI.UnregisterSceneScope(gameObject.scene, this);
+            onUnregistered?.Invoke();
+        }
+
+        protected virtual void RegisterScope()
+        {
+
+        }
+
+
+        public Container Container = new Container();
 
         /// <summary>
         /// <inheritdoc cref="IHierarchyScope.IsBound(Type)"/>

@@ -17,13 +17,13 @@ namespace Scribe
 
         /// <summary>
         /// Get the object that is bound to this scope for the given type. If 
-        /// no object is bound an error is logged and the default returned.
+        /// no object is bound an error is logged and the default(Type) returned.
         /// </summary>
         public object Get(Type type);
 
         /// <summary>
         /// Get the object that is bound to this scope for the given type and
-        /// id. If no object is bound an error is logged and the default returned.
+        /// id. If no object is bound an error is logged and the default(Type) returned.
         /// </summary>
         public object Get(Type type, string id);
     }

@@ -9,11 +9,13 @@ public static class Scribe_Extensions
     #region Array
         public static T Random<T>(this T[] self) => self[UnityEngine.Random.Range(0, self.Length)];
 
-        public static T GetOrLast<T>(this T[] self, int index) => self[Mathf.Clamp(index, 0, self.Length - 1)];
+        public static T GetOrLast<T>(this T[] self, int index) => self[self.ClampIndex(index)];
 
         public static T GetOrDefault<T>(this T[] self, int index, T _default = default) => (index >= self.Length) ? _default : self[index];
+
+        public static int ClampIndex<T>(this T[] self, int index) => Mathf.Clamp(index, 0, self.Length - 1);
     #endregion
-    
+
     #region Behavior
     public static bool HasComponent<T>(this Behaviour self) => self.GetComponent<T>() != null;
 

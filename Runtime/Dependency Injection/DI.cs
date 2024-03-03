@@ -88,7 +88,7 @@ namespace Scribe
                     else
                         Debug.LogError($"failed to inject required field with id `{injectAttribute.id}`: {fieldType.Name} {self.GetType().Name}.{field.Name}");
 
-                    return;
+                    continue;
                 }
 
                 field.SetValue(self, resolvedObject);
@@ -139,6 +139,11 @@ namespace Scribe
             return (T)result;
         }
 
+        public static bool HasBound<T>(MonoBehaviour self)
+        {
+            return Resolve(GetScopes(self), typeof(T), out var _);
+        }
+
         #region Scene Scopes
         private static Dictionary<Scene, List<IHierarchyScope>> sceneScopes = new Dictionary<Scene, List<IHierarchyScope>>();
 
@@ -180,7 +185,7 @@ namespace Scribe
             var gameScopes = Resources.LoadAll<GameScope>("");
             foreach (var scope in gameScopes)
             {
-                scope.OnRegister();
+                scope.RegisterScope();
                 AddGameScope(scope);
             }
         }
@@ -188,6 +193,12 @@ namespace Scribe
         public static void AddGameScope(GameScope gameScope)
         {
             gameScopes.Add(gameScope);
+            Debug.Log($"added game-scope `{gameScope}`");
+        }
+
+        public static void RemoveGameScope(GameScope gameScope)
+        {
+            gameScopes.Remove(gameScope);
             Debug.Log($"added game-scope `{gameScope}`");
         }
 

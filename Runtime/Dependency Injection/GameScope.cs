@@ -10,7 +10,7 @@ namespace Scribe
     /// A dependency injection scope tied the whole game context.
     /// </summary>
     [DefaultExecutionOrder(-999)]
-    public abstract class GameScope : ScriptableObject, IScope
+    public class GameScope : ScriptableObject, IScope
     {
 
         public Container Container = new Container(
@@ -21,7 +21,10 @@ namespace Scribe
                 return go;
             });
 
-        public abstract void OnRegister();
+        public virtual void RegisterScope()
+        {
+
+        }
 
         /// <summary>
         /// <inheritdoc cref="IHierarchyScope.IsBound(Type)"/>

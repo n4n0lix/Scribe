@@ -7,21 +7,37 @@ namespace Scribe.Tools
     public class Bouncing : MonoBehaviour
     {
         public float bounceDistance = 2.0f;  // The distance the object will bounce.
-        public float bounceSpeed = 2.0f;     // The speed at which the object will bounce.
+        public float bounceTime = 2.0f;     // The speed at which the object will bounce.
+        public AnimationCurve bounceCurve;
 
         private Vector3 initialPosition;
         private float startTime;
+        private float t;
 
         void Start()
         {
             initialPosition = transform.position;
-            startTime = Time.time;
+        }
+
+        private void OnEnable()
+        {
+            
+        }
+
+        private void OnDisable()
+        {
+            
         }
 
         void Update()
         {
-            float timeElapsed = Time.time - startTime;
-            float newYPosition = initialPosition.y + Mathf.Sin(timeElapsed * bounceSpeed) * bounceDistance;
+            t += Time.deltaTime;
+            if (t > bounceTime)
+                t = 0;
+
+            var bounce = bounceCurve.Evaluate(t / bounceTime);
+
+            float newYPosition = initialPosition.y + bounce * bounceDistance;
 
             // Update the object's position.
             transform.position = new Vector3(transform.position.x, newYPosition, transform.position.z);
