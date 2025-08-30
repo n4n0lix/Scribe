@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Scribe
 {
-    public interface IHierarchyScope : IScope
+    public interface IHierarchyScope : ISceneScope
     {
         /// <summary>
         /// The gameobject tied to this scope. Used to determine via object 

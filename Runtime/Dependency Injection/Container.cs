@@ -10,10 +10,9 @@ namespace Scribe
 {
     public class Container
     {
-
         public Func<GameObject, GameObject> instantiateFunc;
 
-        public Container(Func<GameObject, GameObject> instantiationFunc=null)
+        public Container(Func<GameObject, GameObject> instantiationFunc = null)
         {
             instantiateFunc = GameObject.Instantiate;
             if (instantiationFunc != null)
@@ -21,8 +20,8 @@ namespace Scribe
         }
 
 
-
         #region Non-Id Binding
+
         [SerializeField, HideInInspector]
         private readonly Dictionary<Type, object> instanceBindings = new Dictionary<Type, object>();
 
@@ -87,31 +86,31 @@ namespace Scribe
             {
                 return instance;
             }
-                
+
             // #2 Handle bound prefabs
             var (prefabFound, prefab) = _GetPrefab(type);
-            if (!prefabFound)
+            if (prefabFound)
             {
-                return Default(type);
+                // #2.1 Create an inactive version of the prefab
+                var cachedActive = prefab.activeSelf;
+                prefab.SetActive(false);
+                var go = instantiateFunc(prefab);
+                prefab.SetActive(cachedActive);
+
+                instance = go.GetComponentInChildren(type, true);
+                if (instance == null)
+                {
+                    UnityEngine.Object.Destroy(go);
+                    return null;
+                }
+
+                go.SetActive(true);
+                instanceBindings.Add(type, instance);
+
+                return instance;
             }
 
-            // #2.1 Create an inactive version of the prefab
-            var cachedActive = prefab.activeSelf;
-            prefab.SetActive(false);
-            var go = instantiateFunc(prefab);
-            prefab.SetActive(cachedActive);
-
-            instance = go.GetComponentInChildren(type, true);
-            if (instance == null)
-            {
-                UnityEngine.Object.Destroy(go);
-                return null;
-            }
-
-            go.SetActive(true);
-            instanceBindings.Add(type, instance);
-
-            return instance;
+            return Default(type);
         }
 
         public void Unbind<T>()
@@ -148,7 +147,9 @@ namespace Scribe
             catch (InvalidCastException e)
             {
                 instanceBindings.Remove(type);
-                throw new InvalidCastException($"type mismatch: object ({instanceBindings[type].GetType().Name}) was bound as type {type.Name}!", e);
+                throw new InvalidCastException(
+                    $"type mismatch: object ({instanceBindings[type].GetType().Name}) was bound as type {type.Name}!",
+                    e);
             }
 
             // #2.2 Null check
@@ -170,11 +171,13 @@ namespace Scribe
 
             return (true, prefabBindings[type]);
         }
+
         #endregion
 
         #region Id Binding
-        [SerializeField, HideInInspector]
-        private readonly Dictionary<Tuple<Type, string>, object> idBindings = new Dictionary<Tuple<Type, string>, object>();
+
+        [SerializeField, HideInInspector] private readonly Dictionary<Tuple<Type, string>, object> idBindings =
+            new Dictionary<Tuple<Type, string>, object>();
 
         public void Bind<T>(string id, T instance)
         {
@@ -182,7 +185,8 @@ namespace Scribe
 
             if (IsNull(instance))
             {
-                Debug.LogError($"Failed to bind {type} with id `{id}`: object is null, if you want to unbind use `Unbind()`");
+                Debug.LogError(
+                    $"Failed to bind {type} with id `{id}`: object is null, if you want to unbind use `Unbind()`");
                 return;
             }
 
@@ -257,7 +261,8 @@ namespace Scribe
             catch (InvalidCastException e)
             {
                 idBindings.Remove(key);
-                throw new InvalidCastException($"type mismatch: object ({idBindings[key].GetType().Name}) was bound as type {type.Name}!", e);
+                throw new InvalidCastException(
+                    $"type mismatch: object ({idBindings[key].GetType().Name}) was bound as type {type.Name}!", e);
             }
 
             // #2.2 Null check
@@ -269,6 +274,7 @@ namespace Scribe
 
             return (true, instance);
         }
+
         #endregion
 
         /// <summary>
@@ -284,10 +290,10 @@ namespace Scribe
         }
 
         // TODO: Remove bindings from "from" container
-        public static void MoveBindings(Container from, Container to, bool overrideExistingBindings=true)
+        public static void MoveBindings(Container from, Container to, bool overrideExistingBindings = true)
         {
             // #1 Move normal bindings
-            foreach(var x in from.instanceBindings)
+            foreach (var x in from.instanceBindings)
             {
                 if (!overrideExistingBindings && to.instanceBindings.ContainsKey(x.Key))
                     continue;
@@ -331,7 +337,7 @@ namespace Scribe
             }
 
             public object obj;
-            public bool   found;
+            public bool found;
         }
     }
 }
