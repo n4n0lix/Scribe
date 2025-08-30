@@ -7,8 +7,10 @@ namespace Scribe
     /// <summary>
     /// A dependency injection scope tied to a specific scene.
     /// </summary>
-    public class SceneScope : MonoBehaviour, ISceneScope {
-
+    [DefaultExecutionOrder(-999)]
+    [Obsolete("Why not just use HierachyScope but register as SceneScope?")]
+    public class SceneScope : MonoBehaviour, ISceneScope
+    {
         public Scene scene => gameObject.scene;
 
         protected Container Container;
@@ -16,12 +18,12 @@ namespace Scribe
         public SceneScope() : base()
         {
             Container = new Container(
-            instantiationFunc: (g) =>
-            {
-                var go = Instantiate(g);
-                UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(go, scene);
-                return go;
-            });
+                instantiationFunc: (g) =>
+                {
+                    var go = Instantiate(g);
+                    UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(go, scene);
+                    return go;
+                });
         }
 
         /// <summary>

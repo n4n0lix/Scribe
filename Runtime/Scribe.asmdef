@@ -2,7 +2,8 @@
     "name": "Scribe",
     "rootNamespace": "Scribe",
     "references": [
-        "Scribe.DependencyInjection"
+        "Scribe.DependencyInjection",
+        "Scribe.Tools"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

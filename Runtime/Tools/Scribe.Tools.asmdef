@@ -1,7 +1,10 @@
 {
     "name": "Scribe.Tools",
     "rootNamespace": "Scribe.Tools",
-    "references": [],
+    "references": [
+        "GUID:f51ebe6a0ceec4240a699833d6309b23",
+        "GUID:caccfbdb442cdc64fa722b4c5585521f"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
@@ -9,6 +12,17 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.cysharp.unitask",
+            "expression": "0",
+            "define": "HAS_UNITASK"
+        },
+        {
+            "name": "com.unity.2d.spriteshape",
+            "expression": "0",
+            "define": "HAS_SPRITESHAPE"
+        }
+    ],
     "noEngineReferences": false
 }
