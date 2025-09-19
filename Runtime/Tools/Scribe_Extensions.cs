@@ -309,4 +309,18 @@ public static class Scribe_Extensions
 #endif
 
     #endregion
+
+    #region Vector3Int
+    public static Vector2Int ToVec2(this Vector3Int self)
+    {
+        return new Vector2Int(self.x, self.y);
+    }
+    #endregion
+
+    #region Vector2Int
+    public static float ManhattanDistance(this Vector2Int a, Vector2Int b)
+    {
+        return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
+    }
+    #endregion
 }
