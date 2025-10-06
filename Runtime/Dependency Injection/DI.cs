@@ -1,6 +1,3 @@
-#if HAS_UNITASK
-using Cysharp.Threading.Tasks;
-#endif
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,34 +5,48 @@ using System.Reflection;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
+#if HAS_UNITASK
+using Cysharp.Threading.Tasks;
+#endif
 
 namespace Scribe
 {
     /// <summary>
-    /// Dependency Injection class for managing scopes and injecting dependencies.
+    ///     Dependency Injection class for managing scopes and injecting dependencies.
     /// </summary>
     public class DI
     {
+#if HAS_UNITASK
         /// <summary>
-        /// Gets all scopes for a <see cref="MonoBehaviour"/>
-        /// <list type="bullet">
-        ///     <item>All scopes in parent <see cref="GameObject"/>s</item>
-        ///     <item>All scopes in scene of the given <see cref="MonoBehaviour"/></item>
-        ///     <item>All global scopes</item>
-        /// </list>
-        /// The order is first scopes close in hierachy, then scopes higher up in hierachy and lastly scene scopes (unordered).
+        ///     Global throttling settings for async polling (reduce main-thread pressure).
         /// </summary>
-        /// <param name="self">The <see cref="MonoBehaviour"/></param>
-        /// <returns>All applying scopes of the given <see cref="MonoBehaviour"/></returns>
+        public static int InitialPollDelayMs = 50; // first wait between checks
+        public static int   MaxPollDelayMs        = 500; // cap for exponential backoff
+        public static float DefaultTimeoutSeconds = -1f; // <=0 means no timeout
+#endif
+
+        /// <summary>
+        ///     Gets all scopes for a <see cref="MonoBehaviour" />
+        ///     <list type="bullet">
+        ///         <item>All scopes in parent <see cref="GameObject" />s</item>
+        ///         <item>All scopes in scene of the given <see cref="MonoBehaviour" /></item>
+        ///         <item>All global scopes</item>
+        ///     </list>
+        ///     The order is first scopes close in hierarchy, then scopes higher up in hierarchy and lastly scene scopes
+        ///     (unordered).
+        /// </summary>
+        /// <param name="self">The <see cref="MonoBehaviour" /></param>
+        /// <returns>All applying scopes of the given <see cref="MonoBehaviour" /></returns>
         public static List<IScope> GetOrderedScopes(MonoBehaviour self)
         {
-            List<IScope> scopes = new List<IScope>();
+            var scopes = new List<IScope>();
 
-            // #1 Search in local hierachy
+            // #1 Search in local hierarchy
             // TODO: Maybe we can optimize this and already check if the wanted instance
-            // exists so we dont have to check every parent? For now we assume hierachies will
-            // not be so deep so its negilible
-            MonoBehaviour current = (MonoBehaviour)self.GetComponentInParent<IScope>();
+            // exists so we don't have to check every parent? For now we assume hierarchies will
+            // not be so deep so it's negligible.
+            var current = (MonoBehaviour)self.GetComponentInParent<IScope>();
             while (current != null)
             {
                 scopes.Add((IScope)current);
@@ -46,28 +57,26 @@ namespace Scribe
             }
 
             // #2 Check in scene
-            if (sceneScopes.ContainsKey(self.gameObject.scene))
-                scopes.AddRange(sceneScopes[self.gameObject.scene]);
+            if (sceneScopes.TryGetValue(self.gameObject.scene, out var list))
+                scopes.AddRange(list.ToArray()); // copy to avoid concurrent modification during iteration
 
             // #3 Check globally
-            scopes.AddRange(globalScopes);
-            scopes.AddRange(gameScopes);
+            scopes.AddRange(globalScopes.ToArray());
+            scopes.AddRange(gameScopes.ToArray());
 
             return scopes;
         }
 
         /// <summary>
-        /// Injects dependencies from applying scopes into fields marked with <see cref="Scribe.InjectAttribute"/>.
-        /// See <see cref="GetOrderedScopes"/> for what scopes apply.
+        ///     Injects dependencies from applying scopes into fields marked with <see cref="Scribe.InjectAttribute" />.
+        ///     See <see cref="GetOrderedScopes" /> for what scopes apply.
         /// </summary>
-        /// <param name="self">The <see cref="MonoBehaviour"/></param>
-        /// <returns>All applying scopes of the given <see cref="MonoBehaviour"/></returns>
+        /// <param name="self">The <see cref="MonoBehaviour" /></param>
         public static void InjectInto(MonoBehaviour self)
         {
             if (self == null) return;
 
-            // Find scopes
-            var scopes = GetOrderedScopes(self);
+            // Find fields
             var fields = self.GetType().GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
             // Inject into fields
@@ -78,19 +87,19 @@ namespace Scribe
                 if (injectAttribute == null)
                     continue;
 
-                Type fieldType = field.FieldType;
+                var fieldType = field.FieldType;
 
                 bool resolved;
                 object resolvedObject;
 
                 if (string.IsNullOrEmpty(injectAttribute.id))
-                    resolved = Resolve(scopes, fieldType, out resolvedObject);
+                    resolved = Resolve(GetOrderedScopes(self), fieldType, out resolvedObject);
                 else
-                    resolved = ResolveById(scopes, fieldType, injectAttribute.id, out resolvedObject);
+                    resolved = ResolveById(GetOrderedScopes(self), fieldType, injectAttribute.id, out resolvedObject);
 
                 if (!resolved && !injectAttribute.optional)
                 {
-                    if (injectAttribute.id == null)
+                    if (string.IsNullOrEmpty(injectAttribute.id))
                         Debug.LogError(
                             $"failed to inject required field: {fieldType.Name} {self.GetType().Name}.{field.Name}");
                     else
@@ -105,28 +114,31 @@ namespace Scribe
         }
 
         /// <summary>
-        /// Resolve a dependency for a given type and a collection of scopes.
+        ///     Resolve a dependency for a given type and a collection of scopes.
         /// </summary>
         /// <param name="scopes">A collection of scopes</param>
         /// <param name="type">A type</param>
-        /// <param name="result"></param>
-        /// <param name="muteFailureLog"></param>
-        /// <returns>An object bound for the given type or null</returns>
+        /// <param name="result">The resolved object if found</param>
+        /// <param name="muteFailureLog">Mute failure logs (useful for polling)</param>
+        /// <returns>True if resolved; otherwise false</returns>
         public static bool Resolve(IEnumerable<IScope> scopes, Type type, out object result,
             bool muteFailureLog = false)
         {
             foreach (var scope in scopes)
+            {
                 if (scope.IsBound(type))
                 {
                     result = scope.Get(type);
                     return true;
                 }
+            }
 
 #if UNITY_EDITOR
             if (!muteFailureLog)
             {
-                var scopeNames = string.Join(", ", scopes.Select(s => s.ToString()));
-                Debug.LogError($"Failed to resolve {type} in {scopes.Count()} scopes `{scopeNames}`");
+                var scopeList = scopes as IList<IScope> ?? scopes.ToList();
+                var scopeNames = string.Join(", ", scopeList.Select(s => s.ToString()));
+                Debug.LogError($"Failed to resolve {type} in {scopeList.Count} scopes `{scopeNames}`");
             }
 #endif
             result = null;
@@ -134,111 +146,206 @@ namespace Scribe
         }
 
         /// <summary>
-        /// Resolve a dependency for a given type, given id and a collection of scopes.
+        ///     Resolve a dependency for a given type, given id and a collection of scopes.
         /// </summary>
         /// <param name="scopes">A collection of scopes</param>
         /// <param name="type">A type</param>
-        /// <returns>An object bound for the given type or null</returns>
+        /// <param name="id">Binding identifier</param>
+        /// <param name="result">The resolved object if found</param>
+        /// <returns>True if resolved; otherwise false</returns>
         public static bool ResolveById(IEnumerable<IScope> scopes, Type type, string id, out object result)
         {
             foreach (var scope in scopes)
+            {
                 if (scope.IsBound(type, id))
                 {
                     result = scope.Get(type, id);
                     return true;
                 }
+            }
 
-//#if UNITY_EDITOR
-//            Debug.LogError($"Failed to resolve {type} for id `{id}`");
-//#endif
             result = null;
             return false;
         }
 
+        /// <summary>
+        ///     Get a bound instance if available; returns default(T) when not found.
+        /// </summary>
         public static T Get<T>(MonoBehaviour self) => _Get<T>(self);
 
-        private static T _Get<T>(MonoBehaviour self, bool muteFailureLog = false)
+        static T _Get<T>(MonoBehaviour self, bool muteFailureLog = false)
         {
-            Resolve(GetOrderedScopes(self), typeof(T), out var result, muteFailureLog);
-            return (T)result;
+            Resolve(GetOrderedScopes(self), typeof(T), out var boxed, muteFailureLog);
+            if (boxed == null) return default;
+            return (T)boxed;
         }
 
         public static T Get<T>(MonoBehaviour self, string id)
         {
             ResolveById(GetOrderedScopes(self), typeof(T), id, out var result);
+            if (result == null) return default;
             return (T)result;
         }
 
+        public static object Get(MonoBehaviour self, Type type)
+        {
+            Resolve(GetOrderedScopes(self), type, out var result);
+            return result;
+        }
+
+        /// <summary>
+        ///     Try-get helper for value types to avoid boxing null to T.
+        /// </summary>
+        public static bool TryGet<T>(MonoBehaviour self, out T value) where T : struct
+        {
+            if (Resolve(GetOrderedScopes(self), typeof(T), out var boxed, true) && boxed != null)
+            {
+                value = (T)boxed;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
 #if HAS_UNITASK
+        /// <summary>
+        ///     Throttled poller with exponential backoff to limit main-thread work.
+        ///     Runs the predicate on the main thread; waits Initial->Max delay between attempts.
+        /// </summary>
+        static async UniTask<bool> PollAsync(Func<bool> trySatisfy, CancellationToken ct,
+            int initialDelayMs, int maxDelayMs, float timeoutSeconds)
+        {
+            var delay = Mathf.Max(0, initialDelayMs);
+            var maxDelay = Mathf.Max(delay, maxDelayMs);
+            var start = Time.realtimeSinceStartup;
+
+            while (!ct.IsCancellationRequested)
+            {
+                if (trySatisfy())
+                    return true;
+
+                if (timeoutSeconds > 0f && Time.realtimeSinceStartup - start >= timeoutSeconds)
+                    return false;
+
+                if (delay > 0)
+                    await UniTask.Delay(delay, cancellationToken: ct);
+
+                // exponential backoff, capped
+                delay = Mathf.Min(delay * 2, maxDelay);
+            }
+
+            return false;
+        }
+
+        public static async UniTask WaitToInjectInto(MonoBehaviour self)
+            => WaitToInjectInto(self, self.destroyCancellationToken);
+
+        public static async UniTask WaitToInjectInto(MonoBehaviour self, CancellationToken cancellationToken)
+        {
+            if (self == null) return;
+
+            var fields = self.GetType().GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+
+            // Inject into fields
+            foreach (var field in fields)
+            {
+                var injectAttribute = Attribute.GetCustomAttribute(field, typeof(InjectAttribute)) as InjectAttribute;
+                if (injectAttribute == null) continue;
+
+                var fieldType = field.FieldType;
+                var resolved = false;
+                var resolvedObject = fieldType.IsValueType ? Activator.CreateInstance(fieldType) : null;
+
+                var ok = await PollAsync(() =>
+                    {
+                        var scopes = GetOrderedScopes(self); // recompute on each poll so late scopes are visible
+                        if (string.IsNullOrEmpty(injectAttribute.id))
+                            resolved = Resolve(scopes, fieldType, out resolvedObject, true);
+                        else
+                            resolved = ResolveById(scopes, fieldType, injectAttribute.id, out resolvedObject);
+
+                        return resolved || injectAttribute.optional;
+                    },
+                    cancellationToken,
+                    InitialPollDelayMs,
+                    MaxPollDelayMs,
+                    DefaultTimeoutSeconds);
+
+                if (!ok || !resolved && !injectAttribute.optional)
+                {
+                    if (string.IsNullOrEmpty(injectAttribute.id))
+                        Debug.LogError(
+                            $"failed to inject required field: {fieldType.Name} {self.GetType().Name}.{field.Name}");
+                    else
+                        Debug.LogError(
+                            $"failed to inject required field with id `{injectAttribute.id}`: {fieldType.Name} {self.GetType().Name}.{field.Name}");
+                    continue;
+                }
+
+                field.SetValue(self, resolvedObject);
+            }
+        }
+
         public static async UniTask<T> WaitToGetValue<T>(MonoBehaviour self,
             CancellationToken cancellationToken = default) where T : struct
         {
-            Nullable<T> result = null;
-            await UniTask.WaitUntil(() =>
-            {
-                result = Get<T>(self);
-                return result.HasValue;
-            }, cancellationToken: cancellationToken);
-
-            return result.Value;
+            T result = default;
+            await PollAsync(() => TryGet(self, out result),
+                cancellationToken,
+                InitialPollDelayMs,
+                MaxPollDelayMs,
+                DefaultTimeoutSeconds);
+            return result;
         }
 
         public static async UniTask<T> WaitToGet<T>(MonoBehaviour self)
-            where T : class
-        {
-            return await WaitToGet<T>(self, self.destroyCancellationToken);
-        }
+            where T : class => await WaitToGet<T>(self, self.destroyCancellationToken);
 
         public static async UniTask<T> WaitToGet<T>(MonoBehaviour self, CancellationToken cancellationToken)
             where T : class
         {
-            T result = _Get<T>(self, muteFailureLog: true);
+            var result = _Get<T>(self, true);
+            if (result != null) return result;
 
-            if (result == null)
-            {
-                await UniTask.WaitUntil(() =>
+            await PollAsync(() =>
                 {
-                    result = _Get<T>(self, muteFailureLog: true);
+                    result = _Get<T>(self, true);
                     return result != null;
-                }, cancellationToken: cancellationToken);
-            }
+                },
+                cancellationToken,
+                InitialPollDelayMs,
+                MaxPollDelayMs,
+                DefaultTimeoutSeconds);
 
             return result;
         }
 
         public static async UniTask<T> WaitUntil<T>(MonoBehaviour self, Func<T, bool> predicateFunc)
-            where T : class
-        {
-            return await WaitUntil<T>(self, predicateFunc, self.destroyCancellationToken);
-        }
+            where T : class => await WaitUntil(self, predicateFunc, self.destroyCancellationToken);
 
         public static async UniTask<T> WaitUntil<T>(MonoBehaviour self, Func<T, bool> predicateFunc,
             CancellationToken cancellationToken)
             where T : class
         {
-            return await WaitToGet<T>(self, cancellationToken).ContinueWith(async (t) =>
-            {
-                await UniTask.WaitUntil(
-                    () => predicateFunc(t),
-                    cancellationToken: cancellationToken,
-                    cancelImmediately: true);
-                return t;
-            });
+            var t = await WaitToGet<T>(self, cancellationToken);
+            await PollAsync(() => predicateFunc(t),
+                cancellationToken,
+                InitialPollDelayMs,
+                MaxPollDelayMs,
+                DefaultTimeoutSeconds);
+            return t;
         }
 #endif
 
-        public static bool HasBound<T>(MonoBehaviour self)
-        {
-            return Resolve(GetOrderedScopes(self), typeof(T), out var _);
-        }
+        public static bool HasBound<T>(MonoBehaviour self) => Resolve(GetOrderedScopes(self), typeof(T), out _);
 
         #region Scene Scopes
-
-        private static Dictionary<Scene, List<IHierarchyScope>> sceneScopes =
+        static readonly Dictionary<Scene, List<IHierarchyScope>> sceneScopes =
             new Dictionary<Scene, List<IHierarchyScope>>();
 
         /// <summary>
-        /// Register a scope to a scene.
+        ///     Register a scope to a scene.
         /// </summary>
         /// <param name="scope">The scope</param>
         public static void RegisterSceneScope(IHierarchyScope scope)
@@ -250,9 +357,8 @@ namespace Scribe
         }
 
         /// <summary>
-        /// Unregister a scope from a scene.
+        ///     Unregister a scope from a scene.
         /// </summary>
-        /// <param name="scene">The scene</param>
         /// <param name="scope">The scope</param>
         public static void UnregisterSceneScope(IHierarchyScope scope)
         {
@@ -262,14 +368,26 @@ namespace Scribe
             sceneScopes[scope.scene].Remove(scope);
         }
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void WireSceneEvents()
+        {
+            // Ensure handler is not double-registered
+            SceneManager.sceneUnloaded -= OnSceneUnloaded;
+            SceneManager.sceneUnloaded += OnSceneUnloaded;
+        }
+
+        static void OnSceneUnloaded(Scene scene)
+        {
+            if (sceneScopes.Remove(scene))
+                Debug.Log($"Cleared DI scene scopes for unloaded scene `{scene.name}`");
+        }
         #endregion
 
-        #region Scene Scopes
-
-        private static List<IHierarchyScope> globalScopes = new();
+        #region Global Scopes
+        static readonly List<IHierarchyScope> globalScopes = new List<IHierarchyScope>();
 
         /// <summary>
-        /// Register a scope to a scene.
+        ///     Register a global scope.
         /// </summary>
         /// <param name="scope">The scope</param>
         public static void RegisterGlobalScope(IHierarchyScope scope)
@@ -281,9 +399,8 @@ namespace Scribe
         }
 
         /// <summary>
-        /// Unregister a scope from a scene.
+        ///     Unregister a global scope.
         /// </summary>
-        /// <param name="scene">The scene</param>
         /// <param name="scope">The scope</param>
         public static void UnregisterGlobalScope(IHierarchyScope scope)
         {
@@ -292,20 +409,18 @@ namespace Scribe
 
             globalScopes.Remove(scope);
         }
-
         #endregion
 
         #region Game Scopes
-
-        private static List<GameScope> gameScopes = new List<GameScope>();
+        static readonly List<GameScope> gameScopes = new List<GameScope>();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void Init()
+        static void Init()
         {
             if (!Application.isPlaying) return;
 
-            var gameScopes = Resources.LoadAll<GameScope>("");
-            foreach (var scope in gameScopes)
+            var loadedGameScopes = Resources.LoadAll<GameScope>("");
+            foreach (var scope in loadedGameScopes)
             {
                 scope.RegisterScope();
                 AddGameScope(scope);
@@ -321,7 +436,7 @@ namespace Scribe
         public static void RemoveGameScope(GameScope gameScope)
         {
             gameScopes.Remove(gameScope);
-            Debug.Log($"added game-scope `{gameScope}`");
+            Debug.Log($"removed game-scope `{gameScope}`");
         }
 
         public static void ClearGameScope()
@@ -330,11 +445,11 @@ namespace Scribe
 
             Debug.Log($"removed all game-scopes `{string.Join(", ", allGameScopeNames)}`");
             foreach (var scope in gameScopes)
-                UnityEngine.Object.Destroy(scope);
+                Object.Destroy(scope);
 
             gameScopes.Clear();
         }
-
         #endregion
+
     }
 }

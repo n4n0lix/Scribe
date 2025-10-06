@@ -9,48 +9,37 @@ using UnityEngine.U2D;
 
 public static class Scribe_Extensions
 {
-    #region Graphic
 
+    #region Graphic
     public static void SetAlpha(this Graphic self, float alpha)
     {
         var color = self.color;
         color.a = alpha;
         self.color = color;
     }
-
     #endregion
 
     #region IEnumerator
-
-    public static IEnumerator<T> GetEnumerator<T>(this IEnumerator<T> enumerator)
-    {
-        return enumerator;
-    }
-
+    public static IEnumerator<T> GetEnumerator<T>(this IEnumerator<T> enumerator) => enumerator;
     #endregion
 
     #region Queue
-
     public static void EnqueueAll<T>(this Queue<T> pSelf, IEnumerable<T> pRange)
     {
         foreach (var t in pRange)
             pSelf.Enqueue(t);
     }
-
     #endregion
 
     #region Transform
-
     public static void DestroyAllChildren(this Transform t)
     {
-        for (var i = 0; i < t.childCount; i++)
+        for(var i = 0; i < t.childCount; i++)
             MonoBehaviour.Destroy(t.GetChild(i).gameObject);
     }
-
     #endregion
 
     #region Dictionary
-
     public static Dictionary<V, K> Reverse<K, V>(this Dictionary<K, V> self)
     {
         var reverse = new Dictionary<V, K>();
@@ -58,77 +47,36 @@ public static class Scribe_Extensions
             reverse.Add(kvp.Value, kvp.Key);
         return reverse;
     }
-
     #endregion
 
     #region Array
+    public static T Random<T>(this T[] self) => self[UnityEngine.Random.Range(0, self.Length)];
 
-    public static T Random<T>(this T[] self)
-    {
-        return self[UnityEngine.Random.Range(0, self.Length)];
-    }
+    public static T GetOrLast<T>(this T[] self, int index) => self[self.ClampIndex(index)];
 
-    public static T GetOrLast<T>(this T[] self, int index)
-    {
-        return self[self.ClampIndex(index)];
-    }
+    public static T GetOrDefault<T>(this T[] self, int index, T _default = default) => index >= self.Length ? _default : self[index];
 
-    public static T GetOrDefault<T>(this T[] self, int index, T _default = default)
-    {
-        return index >= self.Length ? _default : self[index];
-    }
+    public static int ClampIndex<T>(this T[] self, int index) => Mathf.Clamp(index, 0, self.Length - 1);
 
-    public static int ClampIndex<T>(this T[] self, int index)
-    {
-        return Mathf.Clamp(index, 0, self.Length - 1);
-    }
+    public static T GetOrLast<T>(this List<T> self, int index) => self[self.ClampIndex(index)];
 
-    public static T GetOrLast<T>(this List<T> self, int index)
-    {
-        return self[self.ClampIndex(index)];
-    }
-
-    public static int ClampIndex<T>(this List<T> self, int index)
-    {
-        return Mathf.Clamp(index, 0, self.Count - 1);
-    }
-
+    public static int ClampIndex<T>(this List<T> self, int index) => Mathf.Clamp(index, 0, self.Count - 1);
     #endregion
 
     #region Behavior
+    public static bool HasComponent<T>(this Behaviour self) => self.GetComponent<T>() != null;
 
-    public static bool HasComponent<T>(this Behaviour self)
-    {
-        return self.GetComponent<T>() != null;
-    }
-
-    public static T GetOrAddComponent<T>(this Behaviour self) where T : Component
-    {
-        return self.gameObject.GetOrAddComponent<T>();
-    }
-
+    public static T GetOrAddComponent<T>(this Behaviour self) where T : Component => self.gameObject.GetOrAddComponent<T>();
     #endregion
 
     #region Component
+    public static bool HasComponent<T>(this Component self) => self.GetComponent<T>() != null;
 
-    public static bool HasComponent<T>(this Component self)
-    {
-        return self.GetComponent<T>() != null;
-    }
-
-    public static T GetOrAddComponent<T>(this Component self) where T : Component
-    {
-        return self.gameObject.GetOrAddComponent<T>();
-    }
-
+    public static T GetOrAddComponent<T>(this Component self) where T : Component => self.gameObject.GetOrAddComponent<T>();
     #endregion
 
     #region GameObject
-
-    public static bool HasComponent<T>(this GameObject self)
-    {
-        return self.GetComponent<T>() != null;
-    }
+    public static bool HasComponent<T>(this GameObject self) => self.GetComponent<T>() != null;
 
     public static T GetOrAddComponent<T>(this GameObject self) where T : Component
     {
@@ -143,25 +91,15 @@ public static class Scribe_Extensions
     {
         g.transform.DestroyAllChildren();
     }
-
     #endregion
 
     #region MonoBehaviour
+    public static bool HasComponent<T>(this MonoBehaviour self) => self.GetComponent<T>() != null;
 
-    public static bool HasComponent<T>(this MonoBehaviour self)
-    {
-        return self.GetComponent<T>() != null;
-    }
-
-    public static T GetOrAddComponent<T>(this MonoBehaviour self) where T : Component
-    {
-        return self.gameObject.GetOrAddComponent<T>();
-    }
-
+    public static T GetOrAddComponent<T>(this MonoBehaviour self) where T : Component => self.gameObject.GetOrAddComponent<T>();
     #endregion
 
     #region RectTransform
-
     public static void SetXAnchor(this RectTransform self, float minX, float maxX)
     {
         self.SetAnchorMinX(minX);
@@ -201,11 +139,9 @@ public static class Scribe_Extensions
         maxAnchor.y = maxY;
         self.anchorMax = maxAnchor;
     }
-
     #endregion
 
     #region Spline
-
 #if HAS_SPRITESHAPE
 
     /// <summary>
@@ -239,7 +175,7 @@ public static class Scribe_Extensions
         var accumulated = 0f;
         var prev = spline.GetPositionAtPercentage(0f);
 
-        for (var i = 1; i <= resolution; i++)
+        for(var i = 1; i <= resolution; i++)
         {
             var t = i / (float)resolution;
             var current = spline.GetPositionAtPercentage(t);
@@ -267,10 +203,10 @@ public static class Scribe_Extensions
         var segments = spline.GetPointCount() - 1;
         var length = 0f;
 
-        for (var i = 0; i < segments; i++)
+        for(var i = 0; i < segments; i++)
         {
             var prev = EvaluateBezierOnSegment(spline, i, 0f);
-            for (var j = 1; j <= resolutionPerSegment; j++)
+            for(var j = 1; j <= resolutionPerSegment; j++)
             {
                 var t = j / (float)resolutionPerSegment;
                 var current = EvaluateBezierOnSegment(spline, i, t);
@@ -282,7 +218,7 @@ public static class Scribe_Extensions
         return length;
     }
 
-    private static Vector3 EvaluateBezierOnSegment(Spline spline, int segmentIndex, float t)
+    static Vector3 EvaluateBezierOnSegment(Spline spline, int segmentIndex, float t)
     {
         SpriteShapeController c;
         var p0 = spline.GetPosition(segmentIndex);
@@ -293,34 +229,29 @@ public static class Scribe_Extensions
         return BezierPoint(p0, p1, p2, p3, t);
     }
 
-    private static Vector3 BezierPoint(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float t)
+    static Vector3 BezierPoint(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float t)
     {
         var u = 1f - t;
         var tt = t * t;
         var uu = u * u;
 
         return u * uu * p0 +
-               3f * uu * t * p1 +
-               3f * u * tt * p2 +
-               tt * t * p3;
+            3f * uu * t * p1 +
+            3f * u * tt * p2 +
+            tt * t * p3;
     }
 
 
 #endif
-
     #endregion
 
     #region Vector3Int
-    public static Vector2Int ToVec2(this Vector3Int self)
-    {
-        return new Vector2Int(self.x, self.y);
-    }
+    public static Vector2Int ToVec2(this Vector3Int self) => new Vector2Int(self.x, self.y);
     #endregion
 
     #region Vector2Int
-    public static float ManhattanDistance(this Vector2Int a, Vector2Int b)
-    {
-        return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
-    }
+    public static Vector3Int ToVec3(this Vector2Int self) => new Vector3Int(self.x, self.y, 0);
+    public static int ManhattanDistance(this Vector2Int pStart, Vector2Int pGoal) => Mathf.Abs(pStart.x - pGoal.x) + Mathf.Abs(pStart.y - pGoal.y);
     #endregion
+
 }
