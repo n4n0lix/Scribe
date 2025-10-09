@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+
 #if HAS_SPRITESHAPE
 using UnityEngine.U2D;
 #endif
 #if HAS_UNITASK
+using Cysharp.Threading.Tasks;
 #endif
 
 public static class Scribe_Extensions
@@ -34,7 +36,7 @@ public static class Scribe_Extensions
     #region Transform
     public static void DestroyAllChildren(this Transform t)
     {
-        for(var i = 0; i < t.childCount; i++)
+        for (var i = 0; i < t.childCount; i++)
             MonoBehaviour.Destroy(t.GetChild(i).gameObject);
     }
     #endregion
@@ -175,7 +177,7 @@ public static class Scribe_Extensions
         var accumulated = 0f;
         var prev = spline.GetPositionAtPercentage(0f);
 
-        for(var i = 1; i <= resolution; i++)
+        for (var i = 1; i <= resolution; i++)
         {
             var t = i / (float)resolution;
             var current = spline.GetPositionAtPercentage(t);
@@ -203,10 +205,10 @@ public static class Scribe_Extensions
         var segments = spline.GetPointCount() - 1;
         var length = 0f;
 
-        for(var i = 0; i < segments; i++)
+        for (var i = 0; i < segments; i++)
         {
             var prev = EvaluateBezierOnSegment(spline, i, 0f);
-            for(var j = 1; j <= resolutionPerSegment; j++)
+            for (var j = 1; j <= resolutionPerSegment; j++)
             {
                 var t = j / (float)resolutionPerSegment;
                 var current = EvaluateBezierOnSegment(spline, i, t);
@@ -254,4 +256,13 @@ public static class Scribe_Extensions
     public static int ManhattanDistance(this Vector2Int pStart, Vector2Int pGoal) => Mathf.Abs(pStart.x - pGoal.x) + Mathf.Abs(pStart.y - pGoal.y);
     #endregion
 
+#if HAS_UNITASK
+    #region UniTask
+        public static async UniTask ContinueWith(this UniTask task, UniTask continuationTask)
+        {
+            await task;
+            await continuationTask;
+        }
+    #endregion
+#endif
 }
