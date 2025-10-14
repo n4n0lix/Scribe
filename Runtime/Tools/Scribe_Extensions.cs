@@ -1,7 +1,7 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-
 #if HAS_SPRITESHAPE
 using UnityEngine.U2D;
 #endif
@@ -36,7 +36,7 @@ public static class Scribe_Extensions
     #region Transform
     public static void DestroyAllChildren(this Transform t)
     {
-        for (var i = 0; i < t.childCount; i++)
+        for(var i = 0; i < t.childCount; i++)
             MonoBehaviour.Destroy(t.GetChild(i).gameObject);
     }
     #endregion
@@ -177,7 +177,7 @@ public static class Scribe_Extensions
         var accumulated = 0f;
         var prev = spline.GetPositionAtPercentage(0f);
 
-        for (var i = 1; i <= resolution; i++)
+        for(var i = 1; i <= resolution; i++)
         {
             var t = i / (float)resolution;
             var current = spline.GetPositionAtPercentage(t);
@@ -205,10 +205,10 @@ public static class Scribe_Extensions
         var segments = spline.GetPointCount() - 1;
         var length = 0f;
 
-        for (var i = 0; i < segments; i++)
+        for(var i = 0; i < segments; i++)
         {
             var prev = EvaluateBezierOnSegment(spline, i, 0f);
-            for (var j = 1; j <= resolutionPerSegment; j++)
+            for(var j = 1; j <= resolutionPerSegment; j++)
             {
                 var t = j / (float)resolutionPerSegment;
                 var current = EvaluateBezierOnSegment(spline, i, t);
@@ -257,12 +257,27 @@ public static class Scribe_Extensions
     #endregion
 
 #if HAS_UNITASK
+
     #region UniTask
-        public static async UniTask ContinueWith(this UniTask task, UniTask continuationTask)
-        {
-            await task;
-            await continuationTask;
-        }
+    public static async UniTask ContinueWith(this UniTask task, UniTask continuationTask)
+    {
+        await task;
+        await continuationTask;
+    }
+
+    public static async UniTask WaitUntil(this UniTask task, Func<bool> predicate)
+    {
+        await task;
+        await UniTask.WaitUntil(predicate);
+    }
+
+    public static async UniTask<T> WaitUntil<T>(this UniTask<T> task, Func<T, bool> predicate)
+    {
+        var result = await task;
+        await UniTask.WaitUntil(result, t => predicate(result));
+        return result;
+    }
     #endregion
+
 #endif
 }
