@@ -43,7 +43,7 @@ namespace Scribe
             var scopes = new List<IScope>();
 
             // #1 Search in local hierarchy
-            // TODO: Maybe we can optimize this and already check if the wanted instance
+            // TODO: [Improve] Maybe we can optimize this and already check if the wanted instance
             // exists so we don't have to check every parent? For now we assume hierarchies will
             // not be so deep so it's negligible.
             var current = (MonoBehaviour)self.GetComponentInParent<IScope>();
@@ -236,6 +236,12 @@ namespace Scribe
             }
 
             return false;
+        }
+
+        public static async UniTask Inject(MonoBehaviour self)
+        {
+            self.enabled = false;
+            WaitToInjectInto(self).ContinueWith(() => self.enabled = true);
         }
 
         public static async UniTask WaitToInjectInto(MonoBehaviour self)
