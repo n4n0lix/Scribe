@@ -65,6 +65,10 @@ public static class Scribe_Extensions
     public static int ClampIndex<T>(this List<T> self, int index) => Mathf.Clamp(index, 0, self.Count - 1);
     #endregion
 
+    #region List
+    public static T Random<T>(this List<T> self) => self[UnityEngine.Random.Range(0, self.Count)];
+    #endregion
+
     #region Behavior
     public static bool HasComponent<T>(this Behaviour self) => self.GetComponent<T>() != null;
 

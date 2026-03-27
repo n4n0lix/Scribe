@@ -1,11 +1,7 @@
-using Scribe;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq.Expressions;
 using UnityEngine;
-
+using Object = UnityEngine.Object;
 namespace Scribe
 {
     public class Container
@@ -21,12 +17,9 @@ namespace Scribe
 
 
         #region Non-Id Binding
+        readonly Dictionary<Type, object> instanceBindings = new Dictionary<Type, object>();
 
-        [SerializeField, HideInInspector]
-        private readonly Dictionary<Type, object> instanceBindings = new Dictionary<Type, object>();
-
-        [SerializeField, HideInInspector]
-        private readonly Dictionary<Type, GameObject> prefabBindings = new Dictionary<Type, GameObject>();
+        readonly Dictionary<Type, GameObject> prefabBindings = new Dictionary<Type, GameObject>();
 
         public void Bind<T>(T instance)
         {
@@ -54,28 +47,32 @@ namespace Scribe
             prefabBindings[type] = prefab;
         }
 
-        public void BindFromResources<T>(string resourcePath) where T : UnityEngine.Object
+        public void BindFromResources<T>(string resourcePath) where T : Object
         {
             Bind(Resources.Load<T>(resourcePath));
         }
 
-        public void InstantiateAndBindResource<T>(string resourcePath) where T : UnityEngine.Object
+        public void InstantiateAndBindResource<T>(string resourcePath) where T : Object
         {
             var obj = Resources.Load<T>(resourcePath);
-            Bind(UnityEngine.Object.Instantiate(obj));
+            Bind(Object.Instantiate(obj));
         }
 
         public bool IsBound(Type type)
         {
-            var (instanceFound, _) = _GetInstance(type);
-            if (instanceFound)
+            if (instanceBindings.TryGetValue(type, out var instance) && !IsNull(instance))
                 return true;
 
-            var (prefabFound, _) = _GetPrefab(type);
-            if (prefabFound)
+            if (prefabBindings.TryGetValue(type, out var prefab) && !IsNull(prefab))
                 return true;
 
             return false;
+        }
+
+        public bool IsBound(Type type, string id)
+        {
+            var key = Tuple.Create(type, id);
+            return idBindings.TryGetValue(key, out var instance) && !IsNull(instance);
         }
 
         public object Get(Type type)
@@ -100,7 +97,7 @@ namespace Scribe
                 instance = go.GetComponentInChildren(type, true);
                 if (instance == null)
                 {
-                    UnityEngine.Object.Destroy(go);
+                    Object.Destroy(go);
                     return null;
                 }
 
@@ -130,39 +127,29 @@ namespace Scribe
             instanceBindings.Remove(type);
         }
 
-        private (bool, object) _GetInstance(Type type)
+        (bool, object) _GetInstance(Type type)
         {
-            // #1 No binding exists
-            if (!instanceBindings.ContainsKey(type))
+            if (!instanceBindings.TryGetValue(type, out var instance))
                 return (false, null);
 
-            // #2 Ensure the bound instance meets expectations (type, not null, ...)
-            object instance;
-
-            // #2.1 Type check
-            try
-            {
-                instance = Convert.ChangeType(instanceBindings[type], type);
-            }
-            catch (InvalidCastException e)
-            {
-                instanceBindings.Remove(type);
-                throw new InvalidCastException(
-                    $"type mismatch: object ({instanceBindings[type].GetType().Name}) was bound as type {type.Name}!",
-                    e);
-            }
-
-            // #2.2 Null check
             if (IsNull(instance))
             {
                 instanceBindings.Remove(type);
                 return (false, null);
             }
 
+            if (!type.IsInstanceOfType(instance))
+            {
+                var actualType = instance.GetType();
+                instanceBindings.Remove(type);
+                throw new InvalidCastException(
+                    $"Type mismatch: object of type {actualType.Name} was bound as {type.Name}.");
+            }
+
             return (true, instance);
         }
 
-        private (bool, GameObject) _GetPrefab(Type type)
+        (bool, GameObject) _GetPrefab(Type type)
         {
             // #1 No binding exists
             if (!prefabBindings.ContainsKey(type))
@@ -171,12 +158,10 @@ namespace Scribe
 
             return (true, prefabBindings[type]);
         }
-
         #endregion
 
         #region Id Binding
-
-        [SerializeField, HideInInspector] private readonly Dictionary<Tuple<Type, string>, object> idBindings =
+        readonly Dictionary<Tuple<Type, string>, object> idBindings =
             new Dictionary<Tuple<Type, string>, object>();
 
         public void Bind<T>(string id, T instance)
@@ -196,12 +181,6 @@ namespace Scribe
             idBindings[Tuple.Create(type, id)] = instance;
         }
 
-        public bool IsBound(Type type, string id)
-        {
-            var (found, _) = _Get(type, id);
-            return found;
-        }
-
         public object Get(Type type, string id)
         {
             var (found, instance) = _Get(type, id);
@@ -219,7 +198,7 @@ namespace Scribe
         }
 
         /// <summary>
-        /// Unbinds "id" if the current bound instance is `instance`.
+        ///     Unbinds "id" if the current bound instance is `instance`.
         /// </summary>
         /// <typeparam name="T">The binding type</typeparam>
         /// <param name="id">The binding id</param>
@@ -236,13 +215,12 @@ namespace Scribe
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="type"></param>
         /// <param name="id"></param>
         /// <returns></returns>
         /// <exception cref="InvalidCastException"></exception>
-        private (bool, object) _Get(Type type, string id)
+        (bool, object) _Get(Type type, string id)
         {
             var key = Tuple.Create(type, id);
 
@@ -274,16 +252,15 @@ namespace Scribe
 
             return (true, instance);
         }
-
         #endregion
 
         /// <summary>
-        /// Returns if the given object is null. If the given object is a UnityEngine.Object
-        /// cast it to it, and then execute the null-check to cover the overloaded null comparison.
+        ///     Returns if the given object is null. If the given object is a UnityEngine.Object
+        ///     cast it to it, and then execute the null-check to cover the overloaded null comparison.
         /// </summary>
-        private static bool IsNull(object obj)
+        static bool IsNull(object obj)
         {
-            if (obj is UnityEngine.Object unityObject)
+            if (obj is Object unityObject)
                 return unityObject == null;
 
             return obj == null;
@@ -328,7 +305,7 @@ namespace Scribe
             return null;
         }
 
-        private class GetResult
+        class GetResult
         {
             public GetResult(bool found, object obj)
             {
@@ -337,7 +314,7 @@ namespace Scribe
             }
 
             public object obj;
-            public bool found;
+            public bool   found;
         }
     }
 }

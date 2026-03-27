@@ -29,40 +29,57 @@ namespace Scribe
         /// <summary>
         ///     Gets all scopes for a <see cref="MonoBehaviour" />
         ///     <list type="bullet">
-        ///         <item>All scopes in parent <see cref="GameObject" />s</item>
-        ///         <item>All scopes in scene of the given <see cref="MonoBehaviour" /></item>
-        ///         <item>All global scopes</item>
+        ///         <item>Find "Local"-scopes: They include 'active' scopes, sitting above in hierachy of this script</item>
+        ///         <item>Find "Scene"-scopes: They include 'active' scopes, registered to the scene of this script</item>
+        ///         <item>Find "Global"-scopes: They include 'active' scopes, registered globally (across scenes)</item>
+        ///         <item>
+        ///             Find "Game"-scopes: They are defined as pre-existing "ScriptableObject" and are always available to
+        ///             everything.
+        ///         </item>
         ///     </list>
-        ///     The order is first scopes close in hierarchy, then scopes higher up in hierarchy and lastly scene scopes
-        ///     (unordered).
+        ///     The order is Local -> Scene -> Global -> Game
         /// </summary>
         /// <param name="self">The <see cref="MonoBehaviour" /></param>
         /// <returns>All applying scopes of the given <see cref="MonoBehaviour" /></returns>
         public static List<IScope> GetOrderedScopes(MonoBehaviour self)
         {
             var scopes = new List<IScope>();
+            var seen = new HashSet<IScope>();
 
-            // #1 Search in local hierarchy
-            // TODO: [Improve] Maybe we can optimize this and already check if the wanted instance
-            // exists so we don't have to check every parent? For now we assume hierarchies will
-            // not be so deep so it's negligible.
-            var current = (MonoBehaviour)self.GetComponentInParent<IScope>();
-            while (current != null)
+            // #1 Find "Local"-scopes: They include 'active' scopes, sitting above in hierachy of this script
+            for(var current = self.transform; current != null; current = current.parent)
             {
-                scopes.Add((IScope)current);
-                if (current.transform.parent != null)
-                    current = (MonoBehaviour)current.transform.parent.GetComponentInParent<IScope>();
-                else
-                    current = null;
+                var localScopes = current.GetComponents<MonoBehaviour>();
+                foreach (var mb in localScopes)
+                {
+                    if (mb is IScope scope && seen.Add(scope))
+                        scopes.Add(scope);
+                }
             }
 
-            // #2 Check in scene
-            if (sceneScopes.TryGetValue(self.gameObject.scene, out var list))
-                scopes.AddRange(list.ToArray()); // copy to avoid concurrent modification during iteration
+            // #2 Find "Scene"-scopes: They include 'active' scopes, registered to the scene of this script
+            if (sceneScopes.TryGetValue(self.gameObject.scene, out var sceneList))
+            {
+                foreach (var scope in sceneList)
+                {
+                    if (seen.Add(scope))
+                        scopes.Add(scope);
+                }
+            }
 
-            // #3 Check globally
-            scopes.AddRange(globalScopes.ToArray());
-            scopes.AddRange(gameScopes.ToArray());
+            // #3 Find "Global"-scopes: They include 'active' scopes, registered globally (across scenes)
+            foreach (var scope in globalScopes)
+            {
+                if (seen.Add(scope))
+                    scopes.Add(scope);
+            }
+
+            // #4 Find "Game"-scopes: They are defined as pre-existing "ScriptableObject" and are always available to everything.
+            foreach (var scope in gameScopes)
+            {
+                if (seen.Add(scope))
+                    scopes.Add(scope);
+            }
 
             return scopes;
         }
@@ -240,12 +257,22 @@ namespace Scribe
 
         public static async UniTask Inject(MonoBehaviour self)
         {
+            if (self == null) return;
+
             self.enabled = false;
-            WaitToInjectInto(self).ContinueWith(() => self.enabled = true);
+            try
+            {
+                await WaitToInjectInto(self);
+            }
+            finally
+            {
+                if (self != null)
+                    self.enabled = true;
+            }
         }
 
         public static async UniTask WaitToInjectInto(MonoBehaviour self)
-            => WaitToInjectInto(self, self.destroyCancellationToken);
+            => await WaitToInjectInto(self, self.destroyCancellationToken);
 
         public static async UniTask WaitToInjectInto(MonoBehaviour self, CancellationToken cancellationToken)
         {
@@ -335,11 +362,15 @@ namespace Scribe
             where T : class
         {
             var t = await WaitToGet<T>(self, cancellationToken);
+            if (t == null)
+                return null;
+
             await PollAsync(() => predicateFunc(t),
                 cancellationToken,
                 InitialPollDelayMs,
                 MaxPollDelayMs,
                 DefaultTimeoutSeconds);
+
             return t;
         }
 #endif

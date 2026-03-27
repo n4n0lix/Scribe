@@ -82,6 +82,35 @@ namespace Scribe
             return created;
         }
 
+        public void ReleaseOne(T instance)
+        {
+            if (instance == null)
+                throw new ArgumentNullException(nameof(instance));
+
+            var index = instances.IndexOf(instance);
+            if (index < 0)
+                throw new InvalidOperationException(
+                    $"InstanceFactory<{typeof(T).Name}>: Tried to release an instance that is not tracked by this factory.");
+
+            if (poolInsteadOfDestroy)
+            {
+                var container = GetContainer(instance);
+
+                // keep pooled items under the expected parent for reuse
+                if (container.transform.parent != content)
+                    container.transform.SetParent(content, false);
+
+                container.SetActive(false);
+                return;
+            }
+
+            instances.RemoveAt(index);
+
+            var go = GetContainer(instance);
+            if (go != null)
+                Object.Destroy(go);
+        }
+
         public void Clear()
         {
             if (poolInsteadOfDestroy)
