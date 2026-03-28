@@ -3,7 +3,8 @@
     "rootNamespace": "Scribe.Tools",
     "references": [
         "GUID:f51ebe6a0ceec4240a699833d6309b23",
-        "GUID:caccfbdb442cdc64fa722b4c5585521f"
+        "GUID:caccfbdb442cdc64fa722b4c5585521f",
+        "GUID:75469ad4d38634e559750d17036d5f7c"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
