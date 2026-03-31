@@ -111,6 +111,8 @@ namespace Scribe
                 Object.Destroy(go);
         }
 
+        public T FindOne(Predicate<T> match) => instances.Find(match);
+
         public void Clear()
         {
             if (poolInsteadOfDestroy)
