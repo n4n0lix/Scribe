@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 #if HAS_SPRITESHAPE
@@ -258,6 +259,11 @@ public static class Scribe_Extensions
     #region Vector2Int
     public static Vector3Int ToVec3(this Vector2Int self) => new Vector3Int(self.x, self.y, 0);
     public static int ManhattanDistance(this Vector2Int pStart, Vector2Int pGoal) => Mathf.Abs(pStart.x - pGoal.x) + Mathf.Abs(pStart.y - pGoal.y);
+    #endregion
+
+    #region HashSet
+    public static int AddAll<T>(this HashSet<T> self, IEnumerable<T> others)
+        => others.Count(other => self.Add(other));
     #endregion
 
 #if HAS_UNITASK
