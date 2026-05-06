@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using Scribe;
 using UnityEngine;
 using UnityEngine.UI;
 #if HAS_SPRITESHAPE
@@ -12,6 +14,40 @@ using Cysharp.Threading.Tasks;
 
 public static class Scribe_Extensions
 {
+
+    #region Action
+    public static void SafeInvoke(this Action self)
+    {
+        if (self == null) return;
+        foreach (Action action in self.GetInvocationList())
+        {
+            try
+            {
+                action.Invoke();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+        }
+    }
+
+    public static void SafeInvoke<T>(this Action<T> self, T arg0)
+    {
+        if (self == null) return;
+        foreach (Action<T> action in self.GetInvocationList())
+        {
+            try
+            {
+                action.Invoke(arg0);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+        }
+    }
+    #endregion
 
     #region Graphic
     public static void SetAlpha(this Graphic self, float alpha)
@@ -74,6 +110,24 @@ public static class Scribe_Extensions
     public static bool HasComponent<T>(this Behaviour self) => self.GetComponent<T>() != null;
 
     public static T GetOrAddComponent<T>(this Behaviour self) where T : Component => self.gameObject.GetOrAddComponent<T>();
+
+    public static void Validate(this Behaviour self)
+    {
+        var flags = BindingFlags.Instance |
+            BindingFlags.Public |
+            BindingFlags.NonPublic;
+
+        foreach (var field in self.GetType().GetFields(flags))
+        {
+            if (!Attribute.IsDefined(field, typeof(NotNullAttribute)))
+                continue;
+
+            var value = field.GetValue(self);
+
+            if (value == null || value.Equals(null)) // handles UnityEngine.Object fake-null
+                Debug.LogError($"Missing dependency: \"{self.gameObject.name}\"/{self.GetType().Name}.{field.Name} is null", self);
+        }
+    }
     #endregion
 
     #region Component
