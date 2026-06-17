@@ -104,6 +104,11 @@ public static class Scribe_Extensions
 
     #region List
     public static T Random<T>(this List<T> self) => self[UnityEngine.Random.Range(0, self.Count)];
+    public static T RandomOrDefault<T>(this List<T> self)
+    {
+        if (self.Count == 0) return default;
+        return self.Random();
+    }
     #endregion
 
     #region Behavior
