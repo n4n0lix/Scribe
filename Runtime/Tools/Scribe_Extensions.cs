@@ -11,6 +11,10 @@ using UnityEngine.U2D;
 #if HAS_UNITASK
 using Cysharp.Threading.Tasks;
 #endif
+#if DOTWEEN
+using DG.Tweening;
+using TMPro;
+#endif
 
 public static class Scribe_Extensions
 {
@@ -40,6 +44,22 @@ public static class Scribe_Extensions
             try
             {
                 action.Invoke(arg0);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+        }
+    }
+
+    public static void SafeInvoke<T0, T1>(this Action<T0, T1> self, T0 arg0, T1 arg1)
+    {
+        if (self == null) return;
+        foreach (Action<T0, T1> action in self.GetInvocationList())
+        {
+            try
+            {
+                action.Invoke(arg0, arg1);
             }
             catch (Exception e)
             {
@@ -349,4 +369,69 @@ public static class Scribe_Extensions
     #endregion
 
 #endif
+
+#if DOTWEEN
+    #region TextMeshPro
+    public static Tween DOTypewriter(
+        this TMP_Text text,
+        string value,
+        float characterTime = 0.05f,
+        bool whitespaceIsInstant = true)
+    {
+        if (text == null)
+            throw new ArgumentNullException(nameof(text));
+
+        value ??= string.Empty;
+
+        text.text = value;
+        text.maxVisibleCharacters = 0;
+
+        if (value.Length == 0)
+            return DOVirtual.DelayedCall(0f, () => { });
+
+        int timedCharacterCount = 0;
+
+        foreach (char c in value)
+        {
+            if (!whitespaceIsInstant || !char.IsWhiteSpace(c))
+                timedCharacterCount++;
+        }
+
+        if (timedCharacterCount == 0)
+        {
+            text.maxVisibleCharacters = value.Length;
+            return DOVirtual.DelayedCall(0f, () => { });
+        }
+
+        return DOTween.To(
+                () => 0,
+                timedCharacters =>
+                {
+                    int consumedTimedCharacters = 0;
+                    int visibleCharacters = 0;
+
+                    while (visibleCharacters < value.Length)
+                    {
+                        char c = value[visibleCharacters];
+
+                        if (!whitespaceIsInstant || !char.IsWhiteSpace(c))
+                        {
+                            if (consumedTimedCharacters >= timedCharacters)
+                                break;
+
+                            consumedTimedCharacters++;
+                        }
+
+                        visibleCharacters++;
+                    }
+
+                    text.maxVisibleCharacters = visibleCharacters;
+                },
+                timedCharacterCount,
+                timedCharacterCount * characterTime)
+            .SetEase(Ease.Linear)
+            .OnComplete(() => text.maxVisibleCharacters = value.Length);
+    }
+    #endregion
+ #endif
 }
