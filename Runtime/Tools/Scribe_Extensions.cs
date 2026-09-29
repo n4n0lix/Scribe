@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Scribe;
+using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
 #if HAS_SPRITESHAPE
@@ -136,9 +138,14 @@ public static class Scribe_Extensions
 
     public static T GetOrAddComponent<T>(this Behaviour self) where T : Component => self.gameObject.GetOrAddComponent<T>();
 
-    public static void Validate(this Behaviour self)
+    public static void Validate(this Behaviour self, bool ignoreInsidePrefab = true)
     {
-        var flags = BindingFlags.Instance |
+#if UNITY_EDITOR
+        if (!IsSceneWorldObject(self) && ignoreInsidePrefab)
+            return;
+#endif
+
+        const BindingFlags flags = BindingFlags.Instance |
             BindingFlags.Public |
             BindingFlags.NonPublic;
 
@@ -153,6 +160,24 @@ public static class Scribe_Extensions
                 Debug.LogError($"Missing dependency: \"{self.gameObject.name}\"/{self.GetType().Name}.{field.Name} is null", self);
         }
     }
+
+#if UNITY_EDITOR
+    static bool IsSceneWorldObject(Component component)
+    {
+        if (component == null)
+            return false;
+
+        var gameObject = component.gameObject;
+
+        if (PrefabUtility.IsPartOfPrefabAsset(gameObject))
+            return false;
+
+        if (PrefabStageUtility.GetPrefabStage(gameObject) != null)
+            return false;
+
+        return gameObject.scene.IsValid() && gameObject.scene.isLoaded;
+    }
+#endif
     #endregion
 
     #region Component
@@ -371,6 +396,7 @@ public static class Scribe_Extensions
 #endif
 
 #if DOTWEEN
+
     #region TextMeshPro
     public static Tween DOTypewriter(
         this TMP_Text text,
@@ -389,9 +415,9 @@ public static class Scribe_Extensions
         if (value.Length == 0)
             return DOVirtual.DelayedCall(0f, () => { });
 
-        int timedCharacterCount = 0;
+        var timedCharacterCount = 0;
 
-        foreach (char c in value)
+        foreach (var c in value)
         {
             if (!whitespaceIsInstant || !char.IsWhiteSpace(c))
                 timedCharacterCount++;
@@ -407,12 +433,12 @@ public static class Scribe_Extensions
                 () => 0,
                 timedCharacters =>
                 {
-                    int consumedTimedCharacters = 0;
-                    int visibleCharacters = 0;
+                    var consumedTimedCharacters = 0;
+                    var visibleCharacters = 0;
 
                     while (visibleCharacters < value.Length)
                     {
-                        char c = value[visibleCharacters];
+                        var c = value[visibleCharacters];
 
                         if (!whitespaceIsInstant || !char.IsWhiteSpace(c))
                         {
@@ -433,5 +459,6 @@ public static class Scribe_Extensions
             .OnComplete(() => text.maxVisibleCharacters = value.Length);
     }
     #endregion
+
  #endif
 }
