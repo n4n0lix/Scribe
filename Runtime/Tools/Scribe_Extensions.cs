@@ -4,9 +4,11 @@ using System.Linq;
 using System.Reflection;
 using Scribe;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
+#if UNITY_EDITOR
+using UnityEditor.SceneManagement;
+#endif
 #if HAS_SPRITESHAPE
 using UnityEngine.U2D;
 #endif
